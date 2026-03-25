@@ -28,8 +28,10 @@ export default function RegisterGooglePage() {
     try {
       await completeGoogleProfile(state.uid, displayName, state.email, role, avatarEmoji)
       navigate(role === 'parent' ? '/setup' : '/join')
-    } catch {
-      setError('שגיאה ביצירת הפרופיל, נסו שנית')
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code
+      const message = (err as { message?: string }).message
+      setError(`שגיאה: ${code || message || 'לא ידועה'}`)
     } finally {
       setLoading(false)
     }
