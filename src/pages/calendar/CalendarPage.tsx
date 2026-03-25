@@ -135,10 +135,12 @@ export default function CalendarPage() {
       setGcalStatus(`✅ יובאו ${count} אירועים חדשים מגוגל קלנדר!`)
     } catch (err: unknown) {
       const msg = (err as { message?: string }).message || 'שגיאה'
-      if (!msg.includes('popup-closed')) {
-        setGcalStatus(`❌ שגיאה: ${msg}`)
-      } else {
+      if (msg.includes('popup-closed')) {
         setGcalStatus('')
+      } else if (msg.includes('has not been used') || msg.includes('disabled') || msg.includes('accessNotConfigured')) {
+        setGcalStatus('❌ Google Calendar API לא מופעל בפרויקט. יש להפעיל אותו ב-Google Cloud Console תחת "APIs & Services".')
+      } else {
+        setGcalStatus(`❌ שגיאה: ${msg}`)
       }
     } finally {
       setGcalLoading(false)
@@ -320,13 +322,13 @@ export default function CalendarPage() {
       {/* Calendar Header */}
       <div className="card mb-4">
         <div className="flex items-center justify-between mb-3">
-          <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-xl active:scale-95 transition-all">
+          <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-xl active:scale-95 transition-all">
             ←
           </button>
           <h2 className="font-bold text-slate-800">
             {format(currentMonth, 'MMMM yyyy', { locale: he })}
           </h2>
-          <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-xl active:scale-95 transition-all">
+          <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-xl active:scale-95 transition-all">
             →
           </button>
         </div>
