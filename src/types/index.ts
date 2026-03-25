@@ -72,6 +72,8 @@ export interface ChoreTemplate {
   category: string
 }
 
+export type RecurrenceType = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+
 export interface CalendarEvent {
   id: string
   familyId: string
@@ -84,6 +86,7 @@ export interface CalendarEvent {
   createdBy: string
   attendees: string[]
   color: string
+  recurrence?: RecurrenceType
   googleEventId?: string
   syncSource: 'local' | 'google' | 'both'
   createdAt: Date

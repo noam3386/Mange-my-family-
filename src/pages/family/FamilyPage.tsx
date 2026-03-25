@@ -17,6 +17,7 @@ export default function FamilyPage() {
   const { t } = useTranslation()
   const { currentUser, family, familyMembers, announcements } = useAppStore()
   const [copied, setCopied] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
   const [showAnnouncement, setShowAnnouncement] = useState(false)
   const [annText, setAnnText] = useState('')
   const [annColor, setAnnColor] = useState(ANNOUNCEMENT_COLORS[0])
@@ -31,6 +32,17 @@ export default function FamilyPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  function getInviteLink() {
+    if (!family) return ''
+    return `https://famliy-app-planning.web.app/join?code=${family.inviteCode}`
+  }
+
+  async function handleCopyLink() {
+    await navigator.clipboard.writeText(getInviteLink())
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2000)
+  }
+
   async function handleShareCode() {
     if (!family || !navigator.share) {
       handleCopyCode()
@@ -39,7 +51,8 @@ export default function FamilyPage() {
     try {
       await navigator.share({
         title: `הצטרף למשפחת ${family.name}`,
-        text: `קוד ההזמנה שלנו: ${family.inviteCode}`,
+        text: `הצטרף אלינו! קוד הזמנה: ${family.inviteCode}`,
+        url: getInviteLink(),
       })
     } catch {
       handleCopyCode()
@@ -125,7 +138,7 @@ export default function FamilyPage() {
             </div>
             <span className="text-5xl">🏠</span>
           </div>
-          <div className="bg-white/20 rounded-xl p-3 flex items-center justify-between">
+          <div className="bg-white/20 rounded-xl p-3 flex items-center justify-between mb-2">
             <div>
               <p className="text-xs text-primary-100">{t('family.inviteCode')}</p>
               <p className="text-2xl font-bold tracking-widest" dir="ltr">{family.inviteCode}</p>
@@ -146,6 +159,20 @@ export default function FamilyPage() {
                 </button>
               )}
             </div>
+          </div>
+          <div className="bg-white/10 rounded-xl p-2.5 flex items-center justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-primary-100 mb-0.5">🔗 קישור הצטרפות ישיר</p>
+              <p className="text-xs text-white/70 truncate dir-ltr" dir="ltr">
+                {getInviteLink()}
+              </p>
+            </div>
+            <button
+              onClick={handleCopyLink}
+              className="bg-white/30 text-white text-xs px-2.5 py-1.5 rounded-lg active:scale-95 transition-all flex-none"
+            >
+              {copiedLink ? '✅' : '📋 העתק'}
+            </button>
           </div>
         </div>
       )}

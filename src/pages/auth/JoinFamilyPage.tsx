@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getFamilyByInviteCode } from '../../lib/firestore'
 import { updateDoc, doc } from 'firebase/firestore'
@@ -9,8 +9,9 @@ import { useAppStore } from '../../store'
 export default function JoinFamilyPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { currentUser } = useAppStore()
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState(searchParams.get('code') || '')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 

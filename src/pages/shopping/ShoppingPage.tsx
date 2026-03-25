@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../../store'
 import {
@@ -8,6 +8,70 @@ import {
   clearPurchasedItems,
 } from '../../lib/firestore'
 import type { ShoppingItem } from '../../types'
+
+interface SwipeableItemProps {
+  item: ShoppingItem
+  onSwipeRight: () => void
+  children: React.ReactNode
+}
+
+function SwipeableItem({ item, onSwipeRight, children }: SwipeableItemProps) {
+  const touchStartX = useRef<number>(0)
+  const touchCurrentX = useRef<number>(0)
+  const [offset, setOffset] = useState(0)
+  const [swiped, setSwiped] = useState(false)
+  const canSwipe = item.status === 'approved' && !swiped
+
+  function handleTouchStart(e: React.TouchEvent) {
+    if (!canSwipe) return
+    touchStartX.current = e.touches[0].clientX
+    touchCurrentX.current = e.touches[0].clientX
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!canSwipe) return
+    const dx = e.touches[0].clientX - touchStartX.current
+    if (dx > 0) {
+      touchCurrentX.current = e.touches[0].clientX
+      setOffset(Math.min(dx, 120))
+    }
+  }
+
+  function handleTouchEnd() {
+    if (!canSwipe) return
+    if (offset > 80) {
+      setSwiped(true)
+      setOffset(120)
+      setTimeout(() => {
+        onSwipeRight()
+        setOffset(0)
+        setSwiped(false)
+      }, 300)
+    } else {
+      setOffset(0)
+    }
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl">
+      {/* Green background hint */}
+      <div
+        className="absolute inset-0 bg-green-500 flex items-center px-4 rounded-2xl transition-opacity"
+        style={{ opacity: Math.min(offset / 80, 1) }}
+      >
+        <span className="text-white font-bold text-lg">🛍️ נרכש!</span>
+      </div>
+      <div
+        style={{ transform: `translateX(${offset}px)`, transition: offset === 0 ? 'transform 0.2s' : 'none' }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
 
 const CATEGORIES = [
   { key: 'produce', emoji: '🥦' },
@@ -210,8 +274,12 @@ export default function ShoppingPage() {
           {filtered.map((item) => {
             const catEmoji = CATEGORIES.find((c) => c.key === item.category)?.emoji || '📦'
             return (
-              <div
+              <SwipeableItem
                 key={item.id}
+                item={item}
+                onSwipeRight={() => handleStatusChange(item, 'purchased')}
+              >
+              <div
                 className={`card flex items-center gap-3 transition-all ${
                   item.status === 'purchased' ? 'opacity-60' : ''
                 }`}
@@ -274,6 +342,7 @@ export default function ShoppingPage() {
                   </div>
                 </div>
               </div>
+              </SwipeableItem>
             )
           })}
         </div>

@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../store'
-import { format } from 'date-fns'
+import { format, addDays, isSameDay } from 'date-fns'
 import { he } from 'date-fns/locale'
 
 export default function HomePage() {
@@ -18,6 +18,15 @@ export default function HomePage() {
     return d.toDateString() === today.toDateString()
   })
   const pinnedAnnouncements = announcements.filter((a) => a.pinned).slice(0, 2)
+
+  // Upcoming 7 days (excluding today)
+  const upcomingDays = Array.from({ length: 7 }, (_, i) => addDays(today, i + 1))
+  const upcomingEvents = upcomingDays
+    .map((day) => ({
+      day,
+      events: events.filter((e) => isSameDay(new Date(e.startTime), day)),
+    }))
+    .filter((d) => d.events.length > 0)
 
   const greeting = () => {
     const h = today.getHours()
@@ -146,6 +155,47 @@ export default function HomePage() {
                 ועוד {myTasks.length - 3} משימות →
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Upcoming Week Events */}
+      {upcomingEvents.length > 0 && (
+        <div className="mb-5">
+          <h3 className="section-title">🗓️ אירועי השבוע הקרוב</h3>
+          <div className="space-y-3">
+            {upcomingEvents.map(({ day, events: dayEvs }) => (
+              <div key={day.toISOString()}>
+                <p className="text-xs font-semibold text-slate-500 mb-1 px-1">
+                  {isSameDay(day, addDays(today, 1))
+                    ? 'מחר'
+                    : format(day, 'EEEE, d MMMM', { locale: he })}
+                </p>
+                <div className="space-y-1">
+                  {dayEvs.map((event) => (
+                    <button
+                      key={event.id}
+                      onClick={() => navigate('/calendar')}
+                      className="card w-full text-right flex items-center gap-3 active:scale-95 transition-all py-2"
+                    >
+                      <div
+                        className="w-1 self-stretch rounded-full flex-none"
+                        style={{ backgroundColor: event.color || '#0ea5e9' }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-800 text-sm truncate">{event.title}</p>
+                        {!event.isAllDay && (
+                          <p className="text-xs text-slate-500">
+                            {format(new Date(event.startTime), 'HH:mm')}
+                          </p>
+                        )}
+                        {event.isAllDay && <p className="text-xs text-slate-400">כל היום</p>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -2,14 +2,38 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../../store'
 import { addEvent, deleteEvent } from '../../lib/firestore'
+import { connectGoogleCalendar, fetchGoogleCalendarEvents, importGoogleEventsToFirestore } from '../../lib/googleCalendar'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths } from 'date-fns'
 import { he } from 'date-fns/locale'
-import type { CalendarEvent, FamilyMember } from '../../types'
+import type { CalendarEvent, FamilyMember, RecurrenceType } from '../../types'
 
 const EVENT_COLORS = [
   '#0ea5e9', '#10b981', '#f59e0b', '#ef4444',
   '#8b5cf6', '#ec4899', '#14b8a6', '#f97316',
 ]
+
+const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
+  none: 'לא חוזר',
+  daily: 'כל יום',
+  weekly: 'כל שבוע',
+  monthly: 'כל חודש',
+  yearly: 'כל שנה',
+}
+
+function isRecurringOnDay(event: CalendarEvent, day: Date): boolean {
+  if (!event.recurrence || event.recurrence === 'none') return false
+  const eventDate = new Date(event.startTime)
+  // Only show recurrence from the day after the original
+  if (day <= eventDate) return false
+  switch (event.recurrence) {
+    case 'daily': return true
+    case 'weekly': return day.getDay() === eventDate.getDay()
+    case 'monthly': return day.getDate() === eventDate.getDate()
+    case 'yearly':
+      return day.getDate() === eventDate.getDate() && day.getMonth() === eventDate.getMonth()
+    default: return false
+  }
+}
 
 export default function CalendarPage() {
   const { t } = useTranslation()
@@ -26,8 +50,11 @@ export default function CalendarPage() {
     startTime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     endTime: '',
     attendees: [] as string[],
+    recurrence: 'none' as RecurrenceType,
   })
   const [loading, setLoading] = useState(false)
+  const [gcalLoading, setGcalLoading] = useState(false)
+  const [gcalStatus, setGcalStatus] = useState('')
 
   const isParent = currentUser?.role === 'parent'
 
@@ -35,13 +62,13 @@ export default function CalendarPage() {
   const monthEnd = endOfMonth(currentMonth)
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd })
 
-  const selectedDateEvents = selectedDate
-    ? events.filter((e) => isSameDay(new Date(e.startTime), selectedDate))
-    : []
-
-  function getEventsForDay(day: Date) {
-    return events.filter((e) => isSameDay(new Date(e.startTime), day))
+  function getEventsForDay(day: Date): CalendarEvent[] {
+    const direct = events.filter((e) => isSameDay(new Date(e.startTime), day))
+    const recurring = events.filter((e) => isRecurringOnDay(e, day))
+    return [...direct, ...recurring]
   }
+
+  const selectedDateEvents = selectedDate ? getEventsForDay(selectedDate) : []
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -63,6 +90,7 @@ export default function CalendarPage() {
         createdBy: currentUser.id,
         attendees: newEvent.attendees,
         syncSource: 'local',
+        recurrence: newEvent.recurrence,
       })
       setShowAdd(false)
       setNewEvent({
@@ -74,6 +102,7 @@ export default function CalendarPage() {
         startTime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         endTime: '',
         attendees: [],
+        recurrence: 'none',
       })
     } finally {
       setLoading(false)
@@ -94,6 +123,28 @@ export default function CalendarPage() {
     }))
   }
 
+  async function handleConnectGoogleCalendar() {
+    if (!currentUser || !family) return
+    setGcalLoading(true)
+    setGcalStatus('')
+    try {
+      const token = await connectGoogleCalendar()
+      setGcalStatus('מוריד אירועים מגוגל...')
+      const googleEvents = await fetchGoogleCalendarEvents(token)
+      const count = await importGoogleEventsToFirestore(googleEvents, family.id, currentUser.id)
+      setGcalStatus(`✅ יובאו ${count} אירועים חדשים מגוגל קלנדר!`)
+    } catch (err: unknown) {
+      const msg = (err as { message?: string }).message || 'שגיאה'
+      if (!msg.includes('popup-closed')) {
+        setGcalStatus(`❌ שגיאה: ${msg}`)
+      } else {
+        setGcalStatus('')
+      }
+    } finally {
+      setGcalLoading(false)
+    }
+  }
+
   const hebrewDays = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳']
 
   return (
@@ -101,13 +152,43 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-slate-800">📅 {t('calendar.title')}</h1>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="bg-primary-500 text-white text-sm font-semibold px-4 py-2 rounded-xl active:scale-95 transition-all shadow-sm"
-        >
-          + {t('calendar.addEvent')}
-        </button>
+        <div className="flex gap-2">
+          {isParent && (
+            <button
+              onClick={handleConnectGoogleCalendar}
+              disabled={gcalLoading}
+              className="bg-white border border-slate-200 text-slate-700 text-xs font-medium px-3 py-2 rounded-xl active:scale-95 transition-all shadow-sm flex items-center gap-1"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              {gcalLoading ? 'מסנכרן...' : 'סנכרן גוגל'}
+            </button>
+          )}
+          <button
+            onClick={() => setShowAdd(!showAdd)}
+            className="bg-primary-500 text-white text-sm font-semibold px-4 py-2 rounded-xl active:scale-95 transition-all shadow-sm"
+          >
+            + {t('calendar.addEvent')}
+          </button>
+        </div>
       </div>
+
+      {/* Google Calendar status */}
+      {gcalStatus && (
+        <div className={`text-sm rounded-xl px-4 py-2 mb-3 ${
+          gcalStatus.startsWith('✅')
+            ? 'bg-green-50 text-green-700 border border-green-200'
+            : gcalStatus.startsWith('❌')
+            ? 'bg-red-50 text-red-600 border border-red-200'
+            : 'bg-blue-50 text-blue-600 border border-blue-200'
+        }`}>
+          {gcalStatus}
+        </div>
+      )}
 
       {/* Add Event Form */}
       {showAdd && (
@@ -155,6 +236,27 @@ export default function CalendarPage() {
                   onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
                   dir="ltr"
                 />
+              </div>
+            </div>
+
+            {/* Recurrence */}
+            <div>
+              <label className="text-xs text-slate-500 mb-1 block">🔁 חזרתיות</label>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {(['none', 'daily', 'weekly', 'monthly', 'yearly'] as RecurrenceType[]).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setNewEvent({ ...newEvent, recurrence: r })}
+                    className={`flex-none text-xs px-3 py-1.5 rounded-xl transition-all font-medium ${
+                      newEvent.recurrence === r
+                        ? 'bg-primary-500 text-white'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {RECURRENCE_LABELS[r]}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -238,7 +340,6 @@ export default function CalendarPage() {
 
         {/* Calendar grid */}
         <div className="grid grid-cols-7 gap-0.5">
-          {/* Empty cells for day of week offset */}
           {Array.from({ length: monthStart.getDay() }).map((_, i) => (
             <div key={`empty-${i}`} />
           ))}
@@ -262,9 +363,9 @@ export default function CalendarPage() {
                 <span className="text-sm font-medium">{format(day, 'd')}</span>
                 {dayEvents.length > 0 && (
                   <div className="flex gap-0.5 mt-0.5">
-                    {dayEvents.slice(0, 3).map((ev) => (
+                    {dayEvents.slice(0, 3).map((ev, i) => (
                       <span
-                        key={ev.id}
+                        key={ev.id + i}
                         className="w-1.5 h-1.5 rounded-full"
                         style={{ backgroundColor: isSelected ? 'white' : ev.color }}
                       />
@@ -290,9 +391,9 @@ export default function CalendarPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {selectedDateEvents.map((event) => (
+              {selectedDateEvents.map((event, i) => (
                 <EventCard
-                  key={event.id}
+                  key={event.id + i}
                   event={event}
                   isParent={isParent}
                   currentUserId={currentUser?.id || ''}
@@ -305,7 +406,7 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* Upcoming Events */}
+      {/* Upcoming Events (when no date selected) */}
       {!selectedDate && (
         <div>
           <h3 className="section-title">📅 אירועים קרובים</h3>
@@ -352,7 +453,15 @@ function EventCard({ event, isParent, currentUserId, onDelete, familyMembers }: 
     <div className="card flex items-start gap-3">
       <div className="w-1 self-stretch rounded-full flex-none" style={{ backgroundColor: event.color }} />
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-slate-800 truncate">{event.title}</p>
+        <div className="flex items-center gap-2">
+          <p className="font-semibold text-slate-800 truncate">{event.title}</p>
+          {event.recurrence && event.recurrence !== 'none' && (
+            <span className="text-xs text-slate-400 flex-none">🔁</span>
+          )}
+          {event.syncSource === 'google' && (
+            <span className="text-xs text-blue-400 flex-none">G</span>
+          )}
+        </div>
         <p className="text-xs text-slate-500 mt-0.5">
           {event.isAllDay
             ? 'כל היום'
