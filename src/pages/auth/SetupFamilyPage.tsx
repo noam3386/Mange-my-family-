@@ -16,7 +16,11 @@ export default function SetupFamilyPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!familyName.trim() || !currentUser) return
+    if (!familyName.trim()) return
+    if (!currentUser) {
+      setError('משתמש לא מחובר - נסה להתנתק ולהתחבר מחדש')
+      return
+    }
     setLoading(true)
     setError('')
 
@@ -24,8 +28,10 @@ export default function SetupFamilyPage() {
       const family = await createFamily(familyName.trim(), currentUser.id)
       await updateDoc(doc(db, 'users', currentUser.id), { familyId: family.id })
       navigate('/')
-    } catch {
-      setError(t('common.error'))
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code
+      const message = (err as { message?: string }).message
+      setError(`שגיאה: ${code || message || 'לא ידועה'}`)
     } finally {
       setLoading(false)
     }
