@@ -27,7 +27,7 @@ const CHORE_TEMPLATES = [
   { key: 'homework', icon: '📚', points: 10 },
 ]
 
-type ViewMode = 'board' | 'list'
+type ViewMode = 'board' | 'list' | 'daily'
 
 export default function TasksPage() {
   const { t } = useTranslation()
@@ -109,12 +109,26 @@ export default function TasksPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-slate-800">✅ {t('tasks.title')}</h1>
         <div className="flex gap-2">
-          <button
-            onClick={() => setView(view === 'board' ? 'list' : 'board')}
-            className="text-sm bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl"
-          >
-            {view === 'board' ? '📋 רשימה' : '📊 לוח'}
-          </button>
+          <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+            <button
+              onClick={() => setView('board')}
+              className={`text-xs px-2 py-1 rounded-lg transition-all ${view === 'board' ? 'bg-white text-primary-600 font-semibold shadow-sm' : 'text-slate-500'}`}
+            >
+              👥 {t('tasks.allTasks')}
+            </button>
+            <button
+              onClick={() => setView('daily')}
+              className={`text-xs px-2 py-1 rounded-lg transition-all ${view === 'daily' ? 'bg-white text-primary-600 font-semibold shadow-sm' : 'text-slate-500'}`}
+            >
+              📋 {t('tasks.dailyBoard')}
+            </button>
+            <button
+              onClick={() => setView('list')}
+              className={`text-xs px-2 py-1 rounded-lg transition-all ${view === 'list' ? 'bg-white text-primary-600 font-semibold shadow-sm' : 'text-slate-500'}`}
+            >
+              📄
+            </button>
+          </div>
           {isParent && (
             <button
               onClick={() => setShowAdd(!showAdd)}
@@ -252,8 +266,20 @@ export default function TasksPage() {
         </div>
       )}
 
+      {/* Daily Board View - Kanban by status */}
+      {view === 'daily' && (
+        <DailyBoard
+          tasks={tasks}
+          currentUser={currentUser}
+          isParent={isParent}
+          onComplete={handleComplete}
+          onStatusChange={handleStatusChange}
+          onDelete={handleDelete}
+        />
+      )}
+
       {/* Board View */}
-      {view === 'board' ? (
+      {view !== 'daily' && view === 'board' ? (
         <div className="space-y-4">
           {boardColumns.map((col) => (
             col.tasks.length > 0 && (
@@ -313,7 +339,7 @@ export default function TasksPage() {
             </div>
           )}
         </div>
-      ) : (
+      ) : view === 'list' ? (
         /* List View */
         <div className="space-y-2">
           {tasks.length === 0 ? (
@@ -335,11 +361,126 @@ export default function TasksPage() {
             ))
           )}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
 
+// ─── Daily Board Component ──────────────────────────────────────────────────
+interface DailyBoardProps {
+  tasks: Task[]
+  currentUser: import('../../types').FamilyMember | null
+  isParent: boolean
+  onComplete: (task: Task) => void
+  onStatusChange: (task: Task, status: Task['status']) => void
+  onDelete: (id: string) => void
+}
+
+function DailyBoard({ tasks, currentUser, isParent, onComplete, onStatusChange, onDelete }: DailyBoardProps) {
+  const { familyMembers } = useAppStore()
+
+  const columns: { status: Task['status']; label: string; emoji: string; bg: string }[] = [
+    { status: 'todo', label: 'לביצוע', emoji: '📋', bg: 'bg-slate-50' },
+    { status: 'in_progress', label: 'בביצוע', emoji: '⚡', bg: 'bg-blue-50' },
+    { status: 'done', label: 'הושלם', emoji: '✅', bg: 'bg-green-50' },
+  ]
+
+  // Show my tasks or all tasks for parents
+  const visibleTasks = isParent ? tasks : tasks.filter((t) => !t.assignedTo || t.assignedTo === currentUser?.id)
+
+  return (
+    <div>
+      <p className="text-xs text-slate-400 mb-3 text-center">לחצו על משימה כדי להזיז אותה בין עמודות</p>
+      <div className="grid grid-cols-3 gap-2">
+        {columns.map((col) => {
+          const colTasks = visibleTasks.filter((t) => t.status === col.status)
+          return (
+            <div key={col.status} className={`${col.bg} rounded-2xl p-2`}>
+              <div className="text-center mb-2">
+                <span className="text-lg">{col.emoji}</span>
+                <p className="text-xs font-semibold text-slate-600">{col.label}</p>
+                {colTasks.length > 0 && (
+                  <span className="text-xs bg-white/60 text-slate-500 px-1.5 rounded-full">{colTasks.length}</span>
+                )}
+              </div>
+              <div className="space-y-2 min-h-[80px]">
+                {colTasks.map((task) => {
+                  const member = familyMembers.find((m) => m.id === task.assignedTo)
+                  const canAct = isParent || task.assignedTo === currentUser?.id
+                  return (
+                    <div
+                      key={task.id}
+                      className="bg-white rounded-xl p-2 shadow-sm active:scale-95 transition-all"
+                    >
+                      <div className="flex items-start gap-1.5 mb-2">
+                        <span className="text-base">{task.icon}</span>
+                        <p className={`text-xs font-medium text-slate-700 leading-tight flex-1 ${task.status === 'done' ? 'line-through text-slate-400' : ''}`}>
+                          {task.title}
+                        </p>
+                      </div>
+                      {member && (
+                        <div className="flex items-center gap-1 mb-2">
+                          <span className="text-xs">{member.avatarEmoji}</span>
+                          <span className="text-[10px] text-slate-400 truncate">{member.displayName}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">+{task.points}⭐</span>
+                        {canAct && (
+                          <div className="flex gap-1">
+                            {col.status === 'todo' && (
+                              <button
+                                onClick={() => onStatusChange(task, 'in_progress')}
+                                className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-lg"
+                              >
+                                ▶
+                              </button>
+                            )}
+                            {col.status === 'in_progress' && (
+                              <>
+                                <button
+                                  onClick={() => onStatusChange(task, 'todo')}
+                                  className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-lg"
+                                >
+                                  ◀
+                                </button>
+                                <button
+                                  onClick={() => onComplete(task)}
+                                  className="text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-lg"
+                                >
+                                  ✓
+                                </button>
+                              </>
+                            )}
+                            {col.status === 'done' && isParent && (
+                              <button
+                                onClick={() => onDelete(task.id)}
+                                className="text-[10px] text-slate-300 hover:text-red-400"
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+                {colTasks.length === 0 && (
+                  <div className="text-center py-4">
+                    <p className="text-[10px] text-slate-300">ריק</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Task Card Component ─────────────────────────────────────────────────────
 interface TaskCardProps {
   task: Task
   currentUserId: string

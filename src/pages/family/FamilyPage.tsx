@@ -91,6 +91,17 @@ export default function FamilyPage() {
   // Sorted leaderboard
   const leaderboard = [...familyMembers].sort((a, b) => b.points - a.points)
 
+  function getMemberBadges(member: typeof familyMembers[0]) {
+    const badges: { icon: string; label: string }[] = []
+    if (member.points >= 1) badges.push({ icon: '🌟', label: 'משימה ראשונה' })
+    if (member.streak >= 3) badges.push({ icon: '🔥', label: '3 ימים ברצף' })
+    if (member.streak >= 7) badges.push({ icon: '💪', label: 'שבוע שלם' })
+    if (member.points >= 50) badges.push({ icon: '⭐', label: '50 נקודות' })
+    if (member.points >= 100) badges.push({ icon: '🏆', label: '100 נקודות' })
+    if (member.points >= 250) badges.push({ icon: '👑', label: 'אלוף!' })
+    return badges
+  }
+
   return (
     <div className="page-container pt-4 animate-fade-in">
       {/* Header */}
@@ -209,6 +220,47 @@ export default function FamilyPage() {
           ))}
         </div>
       </div>
+
+      {/* Badges per member */}
+      {familyMembers.some((m) => getMemberBadges(m).length > 0) && (
+        <div className="mb-4">
+          <h3 className="section-title">🎖️ עיטורים</h3>
+          <div className="space-y-2">
+            {familyMembers.map((member) => {
+              const badges = getMemberBadges(member)
+              if (badges.length === 0) return null
+              return (
+                <div key={member.id} className="card flex items-center gap-3">
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-xl flex-none"
+                    style={{ backgroundColor: member.color + '20', border: `2px solid ${member.color}` }}
+                  >
+                    {member.avatarEmoji}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">{member.displayName}</p>
+                    <div className="flex gap-1 flex-wrap mt-1">
+                      {badges.map((b) => (
+                        <span
+                          key={b.label}
+                          title={b.label}
+                          className="text-lg"
+                          aria-label={b.label}
+                        >
+                          {b.icon}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mr-auto text-right">
+                    <p className="text-xs text-slate-400">{badges.length} עיטורים</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Announcements */}
       <div className="mb-4">
