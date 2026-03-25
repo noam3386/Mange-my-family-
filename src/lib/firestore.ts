@@ -73,8 +73,18 @@ export async function createUserProfile(
   userId: string,
   data: Pick<FamilyMember, 'displayName' | 'email' | 'role' | 'familyId' | 'avatarEmoji' | 'language'>
 ) {
-  const existingMembers = await getDocs(query(collection(db, 'users'), where('familyId', '==', data.familyId)))
-  const colorIndex = existingMembers.size % MEMBER_COLORS.length
+  // Only query for color if the user already belongs to a family
+  let colorIndex = 0
+  if (data.familyId) {
+    try {
+      const existingMembers = await getDocs(query(collection(db, 'users'), where('familyId', '==', data.familyId)))
+      colorIndex = existingMembers.size % MEMBER_COLORS.length
+    } catch {
+      colorIndex = Math.floor(Math.random() * MEMBER_COLORS.length)
+    }
+  } else {
+    colorIndex = Math.floor(Math.random() * MEMBER_COLORS.length)
+  }
   const color = MEMBER_COLORS[colorIndex]
 
   await setDoc(doc(db, 'users', userId), {
