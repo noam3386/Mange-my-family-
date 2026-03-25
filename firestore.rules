@@ -12,9 +12,10 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'parent';
     }
 
-    // Families: parents can create, family members can read
+    // Families: any authenticated user can read (needed for invite code lookup)
+    // parents can create, family members can update
     match /families/{familyId} {
-      allow read: if request.auth != null && getUserFamilyId() == familyId;
+      allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow update: if request.auth != null && getUserFamilyId() == familyId && isParent();
     }
