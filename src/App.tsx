@@ -6,6 +6,7 @@ import { useRealtimeData } from './hooks/useRealtimeData'
 // Pages
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
+import RegisterGooglePage from './pages/auth/RegisterGooglePage'
 import JoinFamilyPage from './pages/auth/JoinFamilyPage'
 import SetupFamilyPage from './pages/auth/SetupFamilyPage'
 import MainLayout from './components/layout/MainLayout'
@@ -37,6 +38,7 @@ function AppContent() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/register-google" element={<RegisterGooglePage />} />
         <Route path="/join" element={<JoinFamilyPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
