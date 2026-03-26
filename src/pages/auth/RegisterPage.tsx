@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '../../lib/firebase'
+import { auth, db } from '../../lib/firebase'
 import { createUserProfile } from '../../lib/firestore'
 import { useTranslation } from 'react-i18next'
 import { AVATAR_EMOJIS } from '../../types'
 import type { UserRole } from '../../types'
+import { updateDoc, doc } from 'firebase/firestore'
 
 export default function RegisterPage() {
   const { t } = useTranslation()
@@ -39,7 +40,15 @@ export default function RegisterPage() {
         avatarEmoji,
         language: 'he',
       })
-      navigate(role === 'parent' ? '/setup' : '/join')
+
+      const pendingFamilyId = sessionStorage.getItem('pendingFamilyId')
+      if (pendingFamilyId) {
+        sessionStorage.removeItem('pendingFamilyId')
+        await updateDoc(doc(db, 'users', cred.user.uid), { familyId: pendingFamilyId })
+        navigate('/')
+      } else {
+        navigate(role === 'parent' ? '/setup' : '/join')
+      }
     } catch (err: unknown) {
       const code = (err as { code?: string }).code
       if (code === 'auth/email-already-in-use') setError(t('auth.errors.emailInUse'))
