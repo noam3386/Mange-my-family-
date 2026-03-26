@@ -1,4 +1,4 @@
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
+import { GoogleAuthProvider, signInWithPopup, reauthenticateWithPopup, linkWithPopup } from 'firebase/auth'
 import { auth, db } from './firebase'
 import { collection, addDoc, query, where, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore'
 
@@ -27,7 +27,28 @@ export async function connectGoogleCalendar(): Promise<string> {
   provider.addScope(CALENDAR_SCOPE)
   provider.setCustomParameters({ prompt: 'consent' })
 
-  const result = await signInWithPopup(auth, provider)
+  const user = auth.currentUser
+  if (!user) throw new Error('לא מחובר')
+
+  const isGoogleUser = user.providerData.some((p) => p.providerId === 'google.com')
+
+  let result
+  if (isGoogleUser) {
+    result = await reauthenticateWithPopup(user, provider)
+  } else {
+    try {
+      result = await linkWithPopup(user, provider)
+    } catch (err: unknown) {
+      // Already linked — fall back to signInWithPopup just for the token
+      if ((err as { code?: string }).code === 'auth/provider-already-linked' ||
+          (err as { code?: string }).code === 'auth/credential-already-in-use') {
+        result = await signInWithPopup(auth, provider)
+      } else {
+        throw err
+      }
+    }
+  }
+
   const credential = GoogleAuthProvider.credentialFromResult(result)
   if (!credential?.accessToken) throw new Error('לא התקבל טוקן')
   return credential.accessToken
