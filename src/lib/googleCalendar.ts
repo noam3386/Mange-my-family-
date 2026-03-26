@@ -33,12 +33,31 @@ export async function connectGoogleCalendar(): Promise<string> {
   return credential.accessToken
 }
 
-export async function fetchGoogleCalendarEvents(accessToken: string): Promise<GoogleCalendarEvent[]> {
+export interface GoogleCalendarInfo {
+  id: string
+  summary: string
+  backgroundColor?: string
+  primary?: boolean
+}
+
+export async function fetchCalendarList(accessToken: string): Promise<GoogleCalendarInfo[]> {
+  const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error?.message || 'שגיאה בטעינת רשימת יומנים')
+  }
+  const data = await res.json()
+  return (data.items || []).filter((c: GoogleCalendarInfo) => c.id && c.summary)
+}
+
+export async function fetchGoogleCalendarEvents(accessToken: string, calendarId = 'primary'): Promise<GoogleCalendarEvent[]> {
   const now = new Date()
   const timeMin = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
   const timeMax = new Date(now.getFullYear(), now.getMonth() + 3, 0).toISOString()
 
-  const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events')
+  const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`)
   url.searchParams.set('timeMin', timeMin)
   url.searchParams.set('timeMax', timeMax)
   url.searchParams.set('singleEvents', 'true')

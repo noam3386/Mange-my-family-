@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../../store'
 import { addEvent, deleteEvent } from '../../lib/firestore'
-import { connectGoogleCalendar, fetchGoogleCalendarEvents, importGoogleEventsToFirestore } from '../../lib/googleCalendar'
+import { connectGoogleCalendar, fetchCalendarList, fetchGoogleCalendarEvents, importGoogleEventsToFirestore } from '../../lib/googleCalendar'
+import type { GoogleCalendarInfo } from '../../lib/googleCalendar'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths } from 'date-fns'
 import { he } from 'date-fns/locale'
 import type { CalendarEvent, FamilyMember, RecurrenceType } from '../../types'
@@ -55,6 +56,9 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(false)
   const [gcalLoading, setGcalLoading] = useState(false)
   const [gcalStatus, setGcalStatus] = useState('')
+  const [gcalToken, setGcalToken] = useState('')
+  const [calendarList, setCalendarList] = useState<GoogleCalendarInfo[]>([])
+  const [selectedCalendarId, setSelectedCalendarId] = useState('')
 
   const isParent = currentUser?.role === 'parent'
 
@@ -129,10 +133,13 @@ export default function CalendarPage() {
     setGcalStatus('')
     try {
       const token = await connectGoogleCalendar()
-      setGcalStatus('מוריד אירועים מגוגל...')
-      const googleEvents = await fetchGoogleCalendarEvents(token)
-      const count = await importGoogleEventsToFirestore(googleEvents, family.id, currentUser.id)
-      setGcalStatus(`✅ יובאו ${count} אירועים חדשים מגוגל קלנדר!`)
+      setGcalToken(token)
+      setGcalStatus('טוען יומנים...')
+      const calendars = await fetchCalendarList(token)
+      setCalendarList(calendars)
+      const primary = calendars.find((c) => c.primary)
+      setSelectedCalendarId(primary?.id || calendars[0]?.id || 'primary')
+      setGcalStatus('')
     } catch (err: unknown) {
       const msg = (err as { message?: string }).message || 'שגיאה'
       if (msg.includes('popup-closed')) {
@@ -142,6 +149,24 @@ export default function CalendarPage() {
       } else {
         setGcalStatus(`❌ שגיאה: ${msg}`)
       }
+    } finally {
+      setGcalLoading(false)
+    }
+  }
+
+  async function handleImportCalendar() {
+    if (!currentUser || !family || !gcalToken || !selectedCalendarId) return
+    setGcalLoading(true)
+    setGcalStatus('מוריד אירועים מגוגל...')
+    try {
+      const googleEvents = await fetchGoogleCalendarEvents(gcalToken, selectedCalendarId)
+      const count = await importGoogleEventsToFirestore(googleEvents, family.id, currentUser.id)
+      setGcalStatus(`✅ יובאו ${count} אירועים חדשים מגוגל קלנדר!`)
+      setCalendarList([])
+      setGcalToken('')
+    } catch (err: unknown) {
+      const msg = (err as { message?: string }).message || 'שגיאה'
+      setGcalStatus(`❌ שגיאה: ${msg}`)
     } finally {
       setGcalLoading(false)
     }
@@ -189,6 +214,51 @@ export default function CalendarPage() {
             : 'bg-blue-50 text-blue-600 border border-blue-200'
         }`}>
           {gcalStatus}
+        </div>
+      )}
+
+      {/* Calendar picker */}
+      {calendarList.length > 0 && (
+        <div className="card mb-4 animate-slide-up">
+          <p className="text-sm font-semibold text-slate-700 mb-3">בחר יומן לייבוא:</p>
+          <div className="space-y-2 max-h-48 overflow-y-auto mb-3">
+            {calendarList.map((cal) => (
+              <button
+                key={cal.id}
+                type="button"
+                onClick={() => setSelectedCalendarId(cal.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-right transition-all ${
+                  selectedCalendarId === cal.id
+                    ? 'bg-primary-50 ring-2 ring-primary-400'
+                    : 'bg-slate-50 hover:bg-slate-100'
+                }`}
+              >
+                <span
+                  className="w-3 h-3 rounded-full flex-none"
+                  style={{ backgroundColor: cal.backgroundColor || '#039be5' }}
+                />
+                <span className="text-sm text-slate-700 flex-1 truncate">{cal.summary}</span>
+                {cal.primary && <span className="text-xs text-slate-400">ראשי</span>}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setCalendarList([]); setGcalToken('') }}
+              className="btn-secondary flex-1 py-2 text-sm"
+            >
+              ביטול
+            </button>
+            <button
+              type="button"
+              onClick={handleImportCalendar}
+              disabled={gcalLoading || !selectedCalendarId}
+              className="btn-primary flex-1 py-2 text-sm"
+            >
+              {gcalLoading ? 'מייבא...' : 'ייבא אירועים'}
+            </button>
+          </div>
         </div>
       )}
 
