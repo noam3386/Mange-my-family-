@@ -520,6 +520,7 @@ interface EventCardProps {
 
 function EventCard({ event, isParent, currentUserId, onDelete, familyMembers }: EventCardProps) {
   const canDelete = isParent || event.createdBy === currentUserId
+  const [showConfirm, setShowConfirm] = useState(false)
 
   return (
     <div className="card flex items-start gap-3">
@@ -531,7 +532,7 @@ function EventCard({ event, isParent, currentUserId, onDelete, familyMembers }: 
             <span className="text-xs text-slate-400 flex-none">🔁</span>
           )}
           {event.syncSource === 'google' && (
-            <span className="text-xs text-blue-400 flex-none">G</span>
+            <span className="text-xs bg-blue-100 text-blue-500 px-1.5 py-0.5 rounded-md font-medium flex-none">G</span>
           )}
         </div>
         <p className="text-xs text-slate-500 mt-0.5">
@@ -553,9 +554,25 @@ function EventCard({ event, isParent, currentUserId, onDelete, familyMembers }: 
             })}
           </div>
         )}
+        {showConfirm && (
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => { onDelete(); setShowConfirm(false) }}
+              className="text-xs bg-red-500 text-white px-3 py-1 rounded-lg font-medium"
+            >
+              מחק
+            </button>
+            <button
+              onClick={() => setShowConfirm(false)}
+              className="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg font-medium"
+            >
+              ביטול
+            </button>
+          </div>
+        )}
       </div>
-      {canDelete && (
-        <button onClick={onDelete} className="text-slate-300 hover:text-red-400 transition-colors text-sm flex-none">
+      {canDelete && !showConfirm && (
+        <button onClick={() => setShowConfirm(true)} className="text-slate-400 hover:text-red-400 transition-colors p-1 flex-none">
           🗑️
         </button>
       )}
