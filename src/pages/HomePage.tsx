@@ -10,13 +10,12 @@ export default function HomePage() {
   const { currentUser, family, shoppingItems, tasks, events, announcements, familyMembers } = useAppStore()
 
   const today = new Date()
+  const tomorrow = addDays(today, 1)
   const pendingItems = shoppingItems.filter((i) => i.status === 'pending').length
   const approvedItems = shoppingItems.filter((i) => i.status === 'approved').length
   const myTasks = tasks.filter((t) => t.assignedTo === currentUser?.id && t.status !== 'done')
-  const todayEvents = events.filter((e) => {
-    const d = new Date(e.startTime)
-    return d.toDateString() === today.toDateString()
-  })
+  const todayEvents = events.filter((e) => isSameDay(new Date(e.startTime), today))
+  const tomorrowEvents = events.filter((e) => isSameDay(new Date(e.startTime), tomorrow))
   const pinnedAnnouncements = announcements.filter((a) => a.pinned).slice(0, 2)
 
   // Upcoming 7 days (excluding today)
@@ -199,6 +198,35 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* Tomorrow's Events */}
+      <div className="mb-5">
+        <h3 className="section-title">🌅 מחר — {format(tomorrow, 'EEEE, d MMMM', { locale: he })}</h3>
+        {tomorrowEvents.length === 0 ? (
+          <div className="card text-center py-4">
+            <p className="text-slate-400 text-sm">אין אירועים מחר</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {tomorrowEvents.map((event) => (
+              <button
+                key={event.id}
+                onClick={() => navigate('/calendar')}
+                className="card w-full text-right flex items-center gap-3 active:scale-95 transition-all"
+              >
+                <div className="w-1 self-stretch rounded-full flex-none" style={{ backgroundColor: event.color || '#0ea5e9' }} />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-slate-800 truncate">{event.title}</p>
+                  <p className="text-xs text-slate-500">
+                    {event.isAllDay ? 'כל היום' : format(new Date(event.startTime), 'HH:mm') + (event.endTime ? ` - ${format(new Date(event.endTime), 'HH:mm')}` : '')}
+                  </p>
+                  {event.location && <p className="text-xs text-slate-400 truncate">📍 {event.location}</p>}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Family Points Leaderboard */}
       {familyMembers.length > 1 && (
