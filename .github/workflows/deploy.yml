@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - claude/init-project-YrsVO
 
 jobs:
   deploy:
