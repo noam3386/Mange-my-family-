@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { auth, db } from '../../lib/firebase'
-import { createUserProfile } from '../../lib/firestore'
+import { createUserProfile, getFamilyByInviteCode } from '../../lib/firestore'
 import { useTranslation } from 'react-i18next'
 import { AVATAR_EMOJIS } from '../../types'
 import type { UserRole } from '../../types'
@@ -42,10 +42,21 @@ export default function RegisterPage() {
       })
 
       const pendingFamilyId = sessionStorage.getItem('pendingFamilyId')
+      const pendingInviteCode = sessionStorage.getItem('pendingInviteCode')
+
       if (pendingFamilyId) {
         sessionStorage.removeItem('pendingFamilyId')
         await updateDoc(doc(db, 'users', cred.user.uid), { familyId: pendingFamilyId })
         navigate('/')
+      } else if (pendingInviteCode) {
+        sessionStorage.removeItem('pendingInviteCode')
+        const family = await getFamilyByInviteCode(pendingInviteCode)
+        if (family) {
+          await updateDoc(doc(db, 'users', cred.user.uid), { familyId: family.id })
+          navigate('/')
+        } else {
+          navigate('/join')
+        }
       } else {
         navigate(role === 'parent' ? '/setup' : '/join')
       }
