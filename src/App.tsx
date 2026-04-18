@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAppStore } from './store'
 import { useAuth } from './hooks/useAuth'
 import { useRealtimeData } from './hooks/useRealtimeData'
+import { useRegisterSW } from 'virtual:pwa-register/react'
 
 // Pages
 import LoginPage from './pages/auth/LoginPage'
@@ -69,9 +70,26 @@ function AppContent() {
   )
 }
 
+function UpdateBanner() {
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW()
+  if (!needRefresh) return null
+  return (
+    <div className="fixed top-0 left-0 right-0 z-50 bg-primary-500 text-white text-sm flex items-center justify-between px-4 py-2 shadow-lg">
+      <span>עדכון חדש זמין!</span>
+      <button
+        onClick={() => updateServiceWorker(true)}
+        className="bg-white text-primary-600 font-semibold px-3 py-1 rounded-lg text-xs"
+      >
+        עדכן עכשיו
+      </button>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <UpdateBanner />
       <AppContent />
     </BrowserRouter>
   )

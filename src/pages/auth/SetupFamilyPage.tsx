@@ -29,9 +29,8 @@ export default function SetupFamilyPage() {
       await updateDoc(doc(db, 'users', currentUser.id), { familyId: family.id })
       navigate('/')
     } catch (err: unknown) {
-      const code = (err as { code?: string }).code
-      const message = (err as { message?: string }).message
-      setError(`שגיאה: ${code || message || 'לא ידועה'}`)
+      const msg = (err as { message?: string }).message || ''
+      setError(msg.length < 100 ? msg : 'אירעה שגיאה ביצירת המשפחה. נסה שוב.')
     } finally {
       setLoading(false)
     }

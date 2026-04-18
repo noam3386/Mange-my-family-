@@ -22,22 +22,23 @@ export default function JoinFamilyPage() {
     setError('')
 
     try {
-      const family = await getFamilyByInviteCode(code.trim().toUpperCase())
-      if (!family) {
-        setError(t('auth.errors.invalidCode'))
+      if (!currentUser) {
+        // Not logged in — save code and go register first
+        sessionStorage.setItem('pendingInviteCode', code.trim().toUpperCase())
+        navigate('/register')
         return
       }
 
-      if (currentUser) {
-        await updateDoc(doc(db, 'users', currentUser.id), { familyId: family.id })
-        navigate('/')
-      } else {
-        // Save for after registration
-        sessionStorage.setItem('pendingFamilyId', family.id)
-        navigate('/register')
+      const family = await getFamilyByInviteCode(code.trim().toUpperCase())
+      if (!family) {
+        setError('קוד ההזמנה לא נמצא. בדוק שהקוד נכון ונסה שוב.')
+        return
       }
+
+      await updateDoc(doc(db, 'users', currentUser.id), { familyId: family.id })
+      navigate('/')
     } catch {
-      setError(t('common.error'))
+      setError('שגיאה בחיפוש המשפחה. נסה שוב.')
     } finally {
       setLoading(false)
     }

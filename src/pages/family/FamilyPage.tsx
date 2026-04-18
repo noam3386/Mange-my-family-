@@ -407,10 +407,14 @@ export default function FamilyPage() {
       </div>
 
       {/* Logout */}
-      <div className="pb-4">
+      <div className="pb-2">
         <button onClick={handleLogout} className="btn-ghost w-full text-red-500 py-3">
           🚪 {t('auth.logout')}
         </button>
+      </div>
+
+      <div className="pb-6 text-center">
+        <p className="text-xs text-slate-300">גרסה 1.3.0</p>
       </div>
     </div>
   )

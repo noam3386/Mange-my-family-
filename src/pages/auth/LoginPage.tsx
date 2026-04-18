@@ -22,8 +22,19 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, email, password)
       navigate('/')
-    } catch {
-      setError(t('auth.errors.wrongPassword'))
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code
+      if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+        setError('האימייל לא רשום במערכת')
+      } else if (code === 'auth/wrong-password') {
+        setError('סיסמה שגויה')
+      } else if (code === 'auth/too-many-requests') {
+        setError('יותר מדי ניסיונות. נסה שוב מאוחר יותר')
+      } else if (code === 'auth/invalid-email') {
+        setError('כתובת אימייל לא תקינה')
+      } else {
+        setError(`שגיאה: ${code || 'לא ידועה'}`)
+      }
     } finally {
       setLoading(false)
     }
@@ -44,9 +55,8 @@ export default function LoginPage() {
       }
     } catch (err: unknown) {
       const code = (err as { code?: string }).code
-      const message = (err as { message?: string }).message
       if (code !== 'auth/popup-closed-by-user') {
-        setError(`שגיאה: ${code || message || 'לא ידועה'}`)
+        setError('אירעה שגיאה בכניסה עם Google. נסה שוב.')
       }
     } finally {
       setGoogleLoading(false)

@@ -2,75 +2,86 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function: get current user's family ID
     function getUserFamilyId() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId;
     }
 
-    // Helper function: check if user is a parent
     function isParent() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'parent';
     }
 
-    // Families: any authenticated user can read (needed for invite code lookup)
-    // parents can create, family members can update
+    function isSameFamily(familyId) {
+      return getUserFamilyId() == familyId;
+    }
+
+    // Families
     match /families/{familyId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update: if request.auth != null && getUserFamilyId() == familyId && isParent();
+      allow update: if request.auth != null && isSameFamily(familyId) && isParent();
     }
 
-    // Users: own profile or same family
+    // Users: can read own or same family; update own but NOT role/familyId freely
     match /users/{userId} {
       allow read: if request.auth != null && (
         request.auth.uid == userId ||
         getUserFamilyId() == resource.data.familyId
       );
       allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId && (
+        // Allow joining a family (setting familyId once when it's empty)
+        (request.resource.data.role == resource.data.role) &&
+        (
+          resource.data.familyId == '' ||
+          request.resource.data.familyId == resource.data.familyId
+        )
+      );
+      // Parents can update any family member (points, streaks, etc.)
+      allow update: if request.auth != null &&
+        getUserFamilyId() == resource.data.familyId &&
+        isParent();
     }
 
-    // Shopping items: family members can read/add; parents can approve/delete all
+    // Shopping: parents approve; children can only add/update their own items (not status)
     match /shopping/{itemId} {
-      allow read: if request.auth != null && getUserFamilyId() == resource.data.familyId;
-      allow create: if request.auth != null && getUserFamilyId() == request.resource.data.familyId;
-      allow update: if request.auth != null && getUserFamilyId() == resource.data.familyId && (
-        isParent() || resource.data.addedBy == request.auth.uid
-      );
-      allow delete: if request.auth != null && getUserFamilyId() == resource.data.familyId && (
-        isParent() || resource.data.addedBy == request.auth.uid
-      );
-    }
-
-    // Tasks: parents can create/delete; assigned members can update status
-    match /tasks/{taskId} {
-      allow read: if request.auth != null && getUserFamilyId() == resource.data.familyId;
-      allow create: if request.auth != null && getUserFamilyId() == request.resource.data.familyId;
-      allow update: if request.auth != null && getUserFamilyId() == resource.data.familyId && (
+      allow read: if request.auth != null && isSameFamily(resource.data.familyId);
+      allow create: if request.auth != null && isSameFamily(request.resource.data.familyId);
+      allow update: if request.auth != null && isSameFamily(resource.data.familyId) && (
         isParent() ||
-        resource.data.assignedTo == request.auth.uid ||
-        resource.data.createdBy == request.auth.uid
+        (resource.data.addedBy == request.auth.uid &&
+         request.resource.data.status == resource.data.status)
       );
-      allow delete: if request.auth != null && getUserFamilyId() == resource.data.familyId && (
-        isParent() || resource.data.createdBy == request.auth.uid
+      allow delete: if request.auth != null && isSameFamily(resource.data.familyId) && (
+        isParent() || resource.data.addedBy == request.auth.uid
       );
     }
 
-    // Events: all family members can read/create; creators and parents can edit/delete
+    // Tasks
+    match /tasks/{taskId} {
+      allow read: if request.auth != null && isSameFamily(resource.data.familyId);
+      allow create: if request.auth != null && isSameFamily(request.resource.data.familyId) && isParent();
+      allow update: if request.auth != null && isSameFamily(resource.data.familyId) && (
+        isParent() ||
+        resource.data.assignedTo == request.auth.uid
+      );
+      allow delete: if request.auth != null && isSameFamily(resource.data.familyId) && isParent();
+    }
+
+    // Events
     match /events/{eventId} {
-      allow read: if request.auth != null && getUserFamilyId() == resource.data.familyId;
-      allow create: if request.auth != null && getUserFamilyId() == request.resource.data.familyId;
-      allow update, delete: if request.auth != null && getUserFamilyId() == resource.data.familyId && (
+      allow read: if request.auth != null && isSameFamily(resource.data.familyId);
+      allow create: if request.auth != null && isSameFamily(request.resource.data.familyId);
+      allow update, delete: if request.auth != null && isSameFamily(resource.data.familyId) && (
         isParent() || resource.data.createdBy == request.auth.uid
       );
     }
 
-    // Announcements: all can read/create; creators and parents can delete
+    // Announcements
     match /announcements/{annId} {
-      allow read: if request.auth != null && getUserFamilyId() == resource.data.familyId;
-      allow create: if request.auth != null && getUserFamilyId() == request.resource.data.familyId;
-      allow update: if request.auth != null && getUserFamilyId() == resource.data.familyId && isParent();
-      allow delete: if request.auth != null && getUserFamilyId() == resource.data.familyId && (
+      allow read: if request.auth != null && isSameFamily(resource.data.familyId);
+      allow create: if request.auth != null && isSameFamily(request.resource.data.familyId) && isParent();
+      allow update: if request.auth != null && isSameFamily(resource.data.familyId) && isParent();
+      allow delete: if request.auth != null && isSameFamily(resource.data.familyId) && (
         isParent() || resource.data.createdBy == request.auth.uid
       );
     }

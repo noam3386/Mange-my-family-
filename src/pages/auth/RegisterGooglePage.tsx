@@ -30,8 +30,8 @@ export default function RegisterGooglePage() {
       navigate(role === 'parent' ? '/setup' : '/join')
     } catch (err: unknown) {
       const code = (err as { code?: string }).code
-      const message = (err as { message?: string }).message
-      setError(`שגיאה: ${code || message || 'לא ידועה'}`)
+      if (code === 'auth/email-already-in-use') setError('האימייל כבר רשום במערכת')
+      else setError('אירעה שגיאה. נסה שוב.')
     } finally {
       setLoading(false)
     }

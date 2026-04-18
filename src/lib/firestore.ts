@@ -18,6 +18,7 @@ import {
 import { db } from './firebase'
 import type { Family, FamilyMember, ShoppingItem, Task, CalendarEvent, FamilyAnnouncement } from '../types'
 import { MEMBER_COLORS } from '../types'
+import { sanitizeText, validateRequired, validateLength, validatePoints, validateQuantity } from './validate'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,10 @@ function toDate(ts: Timestamp | Date | undefined): Date {
 // ── Family ───────────────────────────────────────────────────────────────────
 
 export async function createFamily(name: string, createdBy: string): Promise<Family> {
+  validateRequired(name, 'שם משפחה')
+  validateLength(name, 50, 'שם משפחה')
+  name = sanitizeText(name, 50)
+
   const familyRef = doc(collection(db, 'families'))
   const inviteCode = generateInviteCode()
   const inviteLinkToken = crypto.randomUUID()
@@ -144,9 +149,14 @@ export function subscribeToShoppingItems(familyId: string, cb: (items: ShoppingI
 }
 
 export async function addShoppingItem(item: Omit<ShoppingItem, 'id' | 'createdAt' | 'updatedAt'>) {
+  validateRequired(item.name, 'שם פריט')
+  validateLength(item.name, 100, 'שם פריט')
   const ref = doc(collection(db, 'shopping'))
   await setDoc(ref, {
     ...item,
+    name: sanitizeText(item.name, 100),
+    quantity: validateQuantity(item.quantity),
+    notes: item.notes ? sanitizeText(item.notes, 200) : '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -191,9 +201,13 @@ export function subscribeToTasks(familyId: string, cb: (tasks: Task[]) => void) 
 }
 
 export async function addTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) {
+  validateRequired(task.title, 'שם משימה')
+  validateLength(task.title, 100, 'שם משימה')
   const ref = doc(collection(db, 'tasks'))
   await setDoc(ref, {
     ...task,
+    title: sanitizeText(task.title, 100),
+    points: validatePoints(task.points),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
