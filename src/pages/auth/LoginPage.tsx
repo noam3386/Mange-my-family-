@@ -55,9 +55,8 @@ export default function LoginPage() {
       }
     } catch (err: unknown) {
       const code = (err as { code?: string }).code
-      const message = (err as { message?: string }).message
       if (code !== 'auth/popup-closed-by-user') {
-        setError(`שגיאה: ${code || message || 'לא ידועה'}`)
+        setError('אירעה שגיאה בכניסה עם Google. נסה שוב.')
       }
     } finally {
       setGoogleLoading(false)
